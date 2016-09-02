@@ -34,7 +34,7 @@ class AnnotateWindow(QMainWindow):
     def init_artist_list(self, lyrics_path: Path):
         self.artist_list = QListView()
         self.artist_list.setWindowTitle('Annotate')
-        self.artist_list.setMinimumSize(600, 400)
+        self.artist_list.setMinimumSize(800, 1000)
         list_model = QStandardItemModel(self.artist_list)
 
         artist_names = lyrics_helpers.get_artists(lyrics_path)
@@ -50,7 +50,7 @@ class AnnotateWindow(QMainWindow):
 
     def setupUI(self):
         logging.info('setting up the UI...')
-        self.setGeometry(500, 500, 800, 600)
+        self.setGeometry(500, 500, 1000, 1000)
         self.setWindowTitle('Annotate')
 
 class SongListWindow(QWidget):
@@ -76,7 +76,9 @@ class SongListWindow(QWidget):
         self.song_table.setRowCount(len(songs))
         self.song_table.setColumnCount(3)
         self.song_table.verticalHeader().hide()
+        self.song_table.horizontalHeader().hide()
 
+        self.song_table.setWindowTitle(artist_name)
         self.song_table.setMinimumSize(600, 400)
         self.song_table.setGeometry(600, 600, 800, 600)
 
