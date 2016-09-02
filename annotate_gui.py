@@ -1,17 +1,17 @@
+import functools
 import logging
 import sys
 
-import tqdm
 from pathlib import Path
 
-import PyQt5
 from PyQt5.QtWidgets import (QMainWindow, QApplication, QWidget,
-                             QListView)
+                             QListView, QTableView, QTableWidget,
+                             QPushButton, QTableWidgetItem)
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
+from PyQt5.QtCore import Qt
 
 import TextSP.ngrams.lyrics_helpers as lyrics_helpers
 
-logging.basicConfig(level=logging.INFO)
 
 class AnnotateWindow(QMainWindow):
     def __init__(self, parent=None, **kwargs):
@@ -29,6 +29,7 @@ class AnnotateWindow(QMainWindow):
         selected_item = selected_index.data()
         self.artist_window = SongListWindow(self.lyrics_path,
                                             selected_item)
+        # self.artist_window.show()
 
     def init_artist_list(self, lyrics_path: Path):
         self.artist_list = QListView()
@@ -58,23 +59,45 @@ class SongListWindow(QWidget):
         self.lyrics_path = lyrics_path
         self.make_song_list(artist_name)
 
+    def display_song_data(self, song_name, kind):
+        """
+        :param song_name:
+        :param kind: "lyrics" or "ngrams"
+        :return:
+        """
+        print(song_name, kind)
+
     def make_song_list(self, artist_name):
         logging.info('initialising the song list for {}'.format(artist_name))
-        self.song_list = QListView()
-        self.song_list.setWindowTitle(artist_name)
+        songs = list(lyrics_helpers.get_artist_songs(artist_name,
+                                                     self.lyrics_path))
 
-        self.song_list.setMinimumSize(600, 400)
-        self.song_list.setGeometry(600, 600, 800, 600)
-        list_model = QStandardItemModel(self.song_list)
+        self.song_table = QTableWidget()
+        self.song_table.setRowCount(len(songs))
+        self.song_table.setColumnCount(3)
+        self.song_table.verticalHeader().hide()
 
-        songs = lyrics_helpers.get_artist_songs(artist_name, self.lyrics_path)
-        for song in songs:
-            song_item = QStandardItem(song)
-            song_item.setEditable(False)
-            list_model.appendRow(song_item)
+        self.song_table.setMinimumSize(600, 400)
+        self.song_table.setGeometry(600, 600, 800, 600)
 
-        self.song_list.setModel(list_model)
-        self.song_list.show()
+        for n, song in enumerate(songs):
+            song_item = QTableWidgetItem(song)
+            song_item.setFlags(song_item.flags() ^ Qt.ItemIsEditable)
+            lyrics_button = QPushButton('lyrics')
+            ngram_button = QPushButton('n-grams')
+            self.song_table.setItem(n, 0, song_item)
+            self.song_table.setCellWidget(n, 1, lyrics_button)
+            self.song_table.setCellWidget(n, 2, ngram_button)
+
+            show_lyrics = functools.partial(self.display_song_data,
+                                            song, 'lyrics')
+            show_ngrams = functools.partial(self.display_song_data,
+                                            song, 'ngrams')
+
+            lyrics_button.clicked.connect(show_lyrics)
+            ngram_button.clicked.connect(show_ngrams)
+
+        self.song_table.show()
 
 
 if __name__ == '__main__':
