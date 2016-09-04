@@ -5,12 +5,14 @@ import sys
 from pathlib import Path
 
 from PyQt5.QtWidgets import (QMainWindow, QApplication, QWidget,
-                             QListView, QTableView, QTableWidget,
-                             QPushButton, QTableWidgetItem)
+                             QListWidget, QTableWidget,
+                             QPushButton, QTableWidgetItem,
+                             QProgressBar)
 from PyQt5.QtGui import QStandardItem, QStandardItemModel
 from PyQt5.QtCore import Qt
 
 import TextSP.ngrams.lyrics_helpers as lyrics_helpers
+import TextSP.ngrams.ngram_utils as ngram_utils
 
 
 class AnnotateWindow(QMainWindow):
@@ -21,32 +23,34 @@ class AnnotateWindow(QMainWindow):
         # temporary
         args = app.arguments()
         self.lyrics_path = Path(args[1])
+        self.tokens_path = Path(args[2])
         self.init_artist_list(self.lyrics_path)
+        self._tokens = None
 
+    @property
+    def tokens(self) -> dict:
+        if not self._tokens:
+            self._tokens = ngram_utils.get_tokens(tokens_path=self.tokens_path,
+                                                  lyrics_path=self.lyrics_path)
+        return self._tokens
 
     def artist_selected(self):
-        selected_index = self.artist_list.selectedIndexes()[0]
-        selected_item = selected_index.data()
+        selected_item = self.artist_list.selectedItems()[0]
+        selected_artist = selected_item.text()
         self.artist_window = SongListWindow(self.lyrics_path,
-                                            selected_item)
-        # self.artist_window.show()
+                                            selected_artist)
 
     def init_artist_list(self, lyrics_path: Path):
-        self.artist_list = QListView()
+        self.artist_list = QListWidget()
         self.artist_list.setWindowTitle('Annotate')
         self.artist_list.setMinimumSize(800, 1000)
-        list_model = QStandardItemModel(self.artist_list)
 
         artist_names = lyrics_helpers.get_artists(lyrics_path)
         for artist in artist_names:
-            artist_item = QStandardItem(artist)
-            artist_item.setEditable(False)
-            list_model.appendRow(artist_item)
+            self.artist_list.addItem(artist)
 
-        self.artist_list.setModel(list_model)
         self.artist_list.doubleClicked.connect(self.artist_selected)
         self.artist_list.show()
-
 
     def setupUI(self):
         logging.info('setting up the UI...')
@@ -59,47 +63,69 @@ class SongListWindow(QWidget):
         self.lyrics_path = lyrics_path
         self.make_song_list(artist_name)
 
-    def display_song_data(self, song_name, kind):
+    def display_song_data(self, artist_name, song_name):
         """
         :param song_name:
         :param kind: "lyrics" or "ngrams"
         :return:
         """
-        print(song_name, kind)
+        self.song_window = SongView(artist_name, song_name)
+        self.song_window.show()
+
+    def song_selected(self, artist_name=None):
+        selected_item = self.song_list.selectedItems()[0]
+        selected_song = selected_item.text()
+        self.display_song_data(artist_name, selected_song)
+
 
     def make_song_list(self, artist_name):
         logging.info('initialising the song list for {}'.format(artist_name))
         songs = list(lyrics_helpers.get_artist_songs(artist_name,
                                                      self.lyrics_path))
 
-        self.song_table = QTableWidget()
-        self.song_table.setRowCount(len(songs))
-        self.song_table.setColumnCount(3)
-        self.song_table.verticalHeader().hide()
-        self.song_table.horizontalHeader().hide()
+        self.song_list = QListWidget()
 
-        self.song_table.setWindowTitle(artist_name)
-        self.song_table.setMinimumSize(600, 400)
-        self.song_table.setGeometry(600, 600, 800, 600)
+        self.song_list.setWindowTitle(artist_name)
+        self.song_list.setMinimumSize(600, 400)
+        self.song_list.setGeometry(600, 600, 800, 600)
 
-        for n, song in enumerate(songs):
-            song_item = QTableWidgetItem(song)
-            song_item.setFlags(song_item.flags() ^ Qt.ItemIsEditable)
-            lyrics_button = QPushButton('lyrics')
-            ngram_button = QPushButton('n-grams')
-            self.song_table.setItem(n, 0, song_item)
-            self.song_table.setCellWidget(n, 1, lyrics_button)
-            self.song_table.setCellWidget(n, 2, ngram_button)
+        for song in songs:
+            self.song_list.addItem(song)
 
-            show_lyrics = functools.partial(self.display_song_data,
-                                            song, 'lyrics')
-            show_ngrams = functools.partial(self.display_song_data,
-                                            song, 'ngrams')
+            # ngram_button.clicked.connect(show_ngrams)
 
-            lyrics_button.clicked.connect(show_lyrics)
-            ngram_button.clicked.connect(show_ngrams)
+        song_selected = functools.partial(self.song_selected,
+                                          artist_name)
+        self.song_list.doubleClicked.connect(song_selected)
 
-        self.song_table.show()
+        self.song_list.show()
+
+class SongView(QWidget):
+    def __init__(self, song_artist, song_name, **kwargs):
+        super(SongView, self).__init__(**kwargs)
+        self.artist = song_artist
+        self.song_name = song_name
+        self.setupUI()
+
+    def setupUI(self):
+        self.setMinimumSize(600, 800)
+        self.make_lyrics_tab()
+
+    def make_lyrics_tab(self):
+        # FIXME: this hangs if the tokens need to be computed anew
+        # show a progress bar
+        progress_bar = QProgressBar(parent=self)
+        # make it be a "busy" progress bar
+        progress_bar.setRange(0, 0)
+        progress_bar.setMinimumWidth(self.minimumWidth())
+        progress_bar.show()
+        all_tokens = ann.tokens
+        song_tokens = all_tokens[self.artist][self.song_name]
+        print(song_tokens)
+        progress_bar.hide()
+        # FIXME: display a table of tokens
+
+
 
 
 if __name__ == '__main__':
